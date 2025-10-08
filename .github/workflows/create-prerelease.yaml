@@ -130,7 +130,7 @@ jobs:
             MSG="${MSG}\\n  * The provided Pre-Release Tag is not higher than the latest release $LATEST."
             exit 1
           else
-            echo "The provided Pre-Release Tag $TAG is valid and higher than latest release ($LATEST)."
+            echo "The provided Pre-Release Tag $TAG is valid and higher than latest release $LATEST."
           fi
           echo "MSG=${MSG}" >> GITHUB_ENV
   
