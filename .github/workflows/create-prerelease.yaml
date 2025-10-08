@@ -82,14 +82,14 @@ jobs:
           # Check semantic versioning: e.g., 1.2.3
           if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3."
-            MSG="${MSG}\\t- The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3.\\n"
+            MSG="${MSG}\\t\\t- The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3.\\n"
             ERRORS=$((ERRORS+1))
           fi
 
           # Check if tag already exists
           if git tag --list | grep -qx "$TAG"; then
             echo "A Release Tag $TAG already exists."
-            MSG="${MSG}\\t- A Release Tag $TAG already exists.\\n"
+            MSG="${MSG}\\t\\t- A Release Tag $TAG already exists.\\n"
             ERRORS=$((ERRORS+1))
           fi
 
@@ -97,7 +97,7 @@ jobs:
           # Check if pre-release tag already exists
           if git tag --list | grep -qx "${TAG}-prerelease"; then
             echo "A Pre-Release Tag ${TAG}-prerelease already exists."
-            MSG="${MSG}\\t- A Pre-Release Tag ${TAG}-prerelease already exists.\\n"
+            MSG="${MSG}\\t\\t- A Pre-Release Tag ${TAG}-prerelease already exists.\\n"
             ERRORS=$((ERRORS+1))
           fi
 
@@ -108,7 +108,7 @@ jobs:
             INPUT_PATCH="${BASH_REMATCH[3]}"
           else
             echo "Could not parse the provided version."
-            MSG="${MSG}\\t- Could not parse the provided version.\\n"
+            MSG="${MSG}\\t\\t- Could not parse the provided version.\\n"
             ERRORS=$((ERRORS+1))
           fi
 
@@ -119,7 +119,7 @@ jobs:
             LATEST_PATCH="${BASH_REMATCH[3]}"
           else
             echo "Could not parse the latest release version."
-            MSG="${MSG}\\t- Could not parse the latest release version.\\n"
+            MSG="${MSG}\\t\\t- Could not parse the latest release version.\\n"
             ERRORS=$((ERRORS+1))
           fi
 
@@ -128,7 +128,7 @@ jobs:
              (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR < LATEST_MINOR )) ||
              (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR == LATEST_MINOR && INPUT_PATCH <= LATEST_PATCH )); then
             echo "The provided Pre-Release Tag is not higher than the latest release $LATEST."
-            MSG="${MSG}\\t- The provided Pre-Release Tag is not higher than the latest release $LATEST.\\n"
+            MSG="${MSG}\\t\\t- The provided Pre-Release Tag is not higher than the latest release $LATEST.\\n"
             ERRORS=$((ERRORS+1))
           else
             echo "The provided Pre-Release Tag $TAG is valid and higher than latest release $LATEST."
@@ -231,9 +231,9 @@ jobs:
           VALIDATE_STATUS: ${{ env.validate_status }}
           CREATE_RELEASE_TAG_STATUS: ${{ env.create_release_tag_status }}
         run: |
-          msg="  - *Get Latest Release*: $GET_LATEST_RELEASE_STATUS"
-          msg="$msg\n  - *Validate Pre-Release Tag*: $VALIDATE_STATUS"
-          msg="$msg\n  - *Create Release Tag*: $CREATE_RELEASE_TAG_STATUS"
+          msg="\\t- *Get Latest Release*: $GET_LATEST_RELEASE_STATUS"
+          msg="$msg\n\\t- *Validate Pre-Release Tag*: $VALIDATE_STATUS"
+          msg="$msg\n\\t- *Create Release Tag*: $CREATE_RELEASE_TAG_STATUS"
           echo "slack_message=$msg" >> $GITHUB_ENV
 
       - name: Send general notification for pipeline success
