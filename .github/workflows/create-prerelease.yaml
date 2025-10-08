@@ -195,47 +195,47 @@ jobs:
     outputs:
       status: ${{ steps.set_job_status_success.outputs.status || steps.set_job_status_failure.outputs.status }}
 
-  # notify-prerelease-status:
-  #   name: Notify Pre-Release Tag Creation Status on Slack
-  #   runs-on: ubuntu-22.04
-  #   needs:
-  #     - get-latest-release
-  #     - validate-provided-tag
-  #     - create-and-push-tag
-  #   env:
-  #     latest_tag: ${{ needs.get-latest-release.outputs.latest_tag }}
-  #     get_latest_release_status: ${{ needs.get-latest-release.outputs.status }}
-  #     validate_status: ${{ needs.validate-provided-tag.outputs.status }}
-  #     create_release_tag_status: ${{ needs.create-and-push-tag.outputs.status }}
-  #     SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-  #   if: always()
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v5
-  #       with:
-  #         fetch-depth: 0 # fetch full history + tags
+  notify-prerelease-status:
+    name: Notify Pre-Release Tag Creation Status on Slack
+    runs-on: ubuntu-22.04
+    needs:
+      - get-latest-release
+      - validate-provided-tag
+      - create-and-push-tag
+    env:
+      latest_tag: ${{ needs.get-latest-release.outputs.latest_tag }}
+      get_latest_release_status: ${{ needs.get-latest-release.outputs.status }}
+      validate_status: ${{ needs.validate-provided-tag.outputs.status }}
+      create_release_tag_status: ${{ needs.create-and-push-tag.outputs.status }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # fetch full history + tags
 
-  #     - name: Get all the status outputs
-  #       env:
-  #         GET_LATEST_RELEASE_STATUS: ${{ env.get_latest_release_status }}
-  #         VALIDATE_STATUS: ${{ env.validate_status }}
-  #         CREATE_RELEASE_TAG_STATUS: ${{ env.create_release_tag_status }}
-  #       run: |
-  #         msg="  - *Get Latest Release*: $GET_LATEST_RELEASE_STATUS"
-  #         msg="$msg\n  - *Validate Pre-Release Tag*: $VALIDATE_STATUS"
-  #         msg="$msg\n  - *Create Release Tag*: $CREATE_RELEASE_TAG_STATUS"
-  #         echo "slack_message=$msg" >> $GITHUB_ENV
+      - name: Get all the status outputs
+        env:
+          GET_LATEST_RELEASE_STATUS: ${{ env.get_latest_release_status }}
+          VALIDATE_STATUS: ${{ env.validate_status }}
+          CREATE_RELEASE_TAG_STATUS: ${{ env.create_release_tag_status }}
+        run: |
+          msg="  - *Get Latest Release*: $GET_LATEST_RELEASE_STATUS"
+          msg="$msg\n  - *Validate Pre-Release Tag*: $VALIDATE_STATUS"
+          msg="$msg\n  - *Create Release Tag*: $CREATE_RELEASE_TAG_STATUS"
+          echo "slack_message=$msg" >> $GITHUB_ENV
 
-  #     - name: Send general notification for pipeline success
-  #       if: needs.create-and-push-tag.result == 'success'
-  #       uses: ./.github/workflows/actions/send-slack-notification
-  #       with:
-  #         slack_notification: ":white_check_mark: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> completed successfully.\\n_Triggered by: ${{ github.actor }}_."
-  #         slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Send general notification for pipeline success
+        if: needs.create-and-push-tag.result == 'success'
+        uses: ./.github/workflows/actions/send-slack-notification
+        with:
+          slack_notification: ":white_check_mark: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> completed successfully.\\n_Triggered by: ${{ github.actor }}_."
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
 
-  #     - name: Send general notification for pipeline failure
-  #       if: needs.create-and-push-tag.result == 'failure' || needs.validate-provided-tag.result == 'failure' || needs.get-latest-release.result == 'failure'
-  #       uses: ./.github/workflows/actions/send-slack-notification
-  #       with:
-  #         slack_notification: ":x: *ERROR: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> failed with one or more errors!*\\n\\nDetails:\\n${{ env.slack_message }}\\n_Triggered by: ${{ github.actor }}_."
-  #         slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+      - name: Send general notification for pipeline failure
+        if: needs.create-and-push-tag.result == 'failure' || needs.validate-provided-tag.result == 'failure' || needs.get-latest-release.result == 'failure'
+        uses: ./.github/workflows/actions/send-slack-notification
+        with:
+          slack_notification: ":x: *ERROR: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> failed with one or more errors!*\\n\\nDetails:\\n${{ env.slack_message }}\\n_Triggered by: ${{ github.actor }}_."
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
