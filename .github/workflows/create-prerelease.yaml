@@ -23,7 +23,7 @@ jobs:
       - name: Find the latest release
         id: latest_release
         run: |
-          latest=$(gh release view --json tagName -q .tagName)
+          latest=$(gh release view --json tagName -q .tagName || true)
           if [ -z "$latest" ]; then
             echo "Unable to find a release matching dX.X.X format."
             echo "Defaulting to d0.1.0 as the latest release."
