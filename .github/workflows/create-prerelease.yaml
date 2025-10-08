@@ -248,5 +248,5 @@ jobs:
         if: needs.create-and-push-tag.result == 'failure' || needs.validate-provided-tag.result == 'failure' || needs.get-latest-release.result == 'failure'
         uses: ./.github/workflows/actions/send-slack-notification
         with:
-          slack_notification: ":x: *ERROR: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> failed with one or more errors!*\\n\\nDetails:\\n${{ env.slack_message }}\\n_Triggered by: ${{ github.actor }}_."
+          slack_notification: ":x: *ERROR: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> failed with one or more errors!*\\n  Details:\\n${{ env.slack_message }}\\n_Triggered by: ${{ github.actor }}_."
           slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
