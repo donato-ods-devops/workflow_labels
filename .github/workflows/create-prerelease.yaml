@@ -62,44 +62,45 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-  
+
       - name: Validate tag
         id: validate_tag
         run: |
           TAG="${{ github.event.inputs.tag_name }}"
           LATEST="${{ env.latest_tag }}"
           MSG=""
-  
+          ERRORS=0
+
           # Default to d0.0.0 if no latest tag is provided
           if [ -z "$LATEST" ]; then
             echo "No latest release found. Using version 0.0.0 for comparison."
             LATEST="0.0.0"
           fi
-  
+
           echo "Latest tag: $LATEST"
-  
+
           # Check semantic versioning: e.g., 1.2.3
           if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3."
-            MSG="${MSG}\\n  * The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3."
-            exit 1
+            MSG="${MSG}\\n    - The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3."
+            ERRORS=$((ERRORS+1))
           fi
-  
+
           # Check if tag already exists
           if git tag --list | grep -qx "$TAG"; then
             echo "A Release Tag $TAG already exists."
-            MSG="${MSG}\\n  * A Release Tag $TAG already exists."
-            exit 1
+            MSG="${MSG}\\n    - A Release Tag $TAG already exists."
+            ERRORS=$((ERRORS+1))
           fi
 
 
           # Check if pre-release tag already exists
           if git tag --list | grep -qx "${TAG}-prerelease"; then
             echo "A Pre-Release Tag ${TAG}-prerelease already exists."
-            MSG="${MSG}\\n  * A Pre-Release Tag ${TAG}-prerelease already exists."
-            exit 1
+            MSG="${MSG}\\n    - A Pre-Release Tag ${TAG}-prerelease already exists."
+            ERRORS=$((ERRORS+1))
           fi
-  
+
           # Extract major, minor, patch from input tag
           if [[ "$TAG" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             INPUT_MAJOR="${BASH_REMATCH[1]}"
@@ -107,10 +108,10 @@ jobs:
             INPUT_PATCH="${BASH_REMATCH[3]}"
           else
             echo "Could not parse the provided version."
-            MSG="${MSG}\\n  * Could not parse the provided version."
-            exit 1
+            MSG="${MSG}\\n    - Could not parse the provided version."
+            ERRORS=$((ERRORS+1))
           fi
-  
+
           # Extract major, minor, patch from latest tag
           if [[ "$LATEST" =~ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             LATEST_MAJOR="${BASH_REMATCH[1]}"
@@ -118,37 +119,41 @@ jobs:
             LATEST_PATCH="${BASH_REMATCH[3]}"
           else
             echo "Could not parse the latest release version."
-            MSG="${MSG}\\n  * Could not parse the latest release version."
-            exit 1
+            MSG="${MSG}\\n    - Could not parse the latest release version."
+            ERRORS=$((ERRORS+1))
           fi
-  
+
           # Compare versions
           if (( INPUT_MAJOR < LATEST_MAJOR )) ||
              (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR < LATEST_MINOR )) ||
              (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR == LATEST_MINOR && INPUT_PATCH <= LATEST_PATCH )); then
             echo "The provided Pre-Release Tag is not higher than the latest release $LATEST."
-            MSG="${MSG}\\n  * The provided Pre-Release Tag is not higher than the latest release $LATEST."
-            exit 1
+            MSG="${MSG}\\n    - The provided Pre-Release Tag is not higher than the latest release $LATEST."
+            ERRORS=$((ERRORS+1))
           else
             echo "The provided Pre-Release Tag $TAG is valid and higher than latest release $LATEST."
           fi
-          echo "MSG is ${MSG}"
           echo "MSG=${MSG}" >> GITHUB_ENV
-  
+          if [[ $ERRORS -gt 0 ]]; then
+            echo "Tag validation failed with $ERRORS error(s)."
+            echo "Details: $MSG"
+            exit 1
+          fi
+
       - name: Set job status output (success)
         id: set_job_status_success
         if: success()
         run: |
           msg="The new pre-release tag ${{ github.event.inputs.tag_name }} is valid."
           echo "status=$msg" >> $GITHUB_OUTPUT
-  
+
       - name: Set job status output (failure)
         id: set_job_status_failure
         if: failure()
         run: |
-          msg=":x: *ERROR: the new pre-release tag ${{ github.event.inputs.tag_name }} is invalid!*\\nDetails:\\n${MSG}"
+          msg=":x: *ERROR: the new pre-release tag ${{ github.event.inputs.tag_name }} is invalid!*\\n  Details:\\n${MSG}"
           echo "status=$msg" >> $GITHUB_OUTPUT
-  
+
     outputs:
       status: ${{ steps.set_job_status_success.outputs.status || steps.set_job_status_failure.outputs.status }}
 
