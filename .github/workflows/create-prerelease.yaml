@@ -1,0 +1,214 @@
+name: Create a Pre-Release Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Please enter ONLY the version to create (e.g., 1.2.3). The version MUST follow semantic versioning, must be higher than the current version, and not already exist.'
+        required: true
+
+jobs:
+  get-latest-release:
+    name: Get the Latest Release
+    runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # fetch full history + tags
+
+      - name: Find the latest release
+        id: latest_release
+        run: |
+          latest=$(gh release view --json tagName -q .tagName)
+          if [ -z "$latest" ]; then
+            echo "Unable to find a release matching dX.X.X format."
+            echo "Defaulting to d0.1.0 as the latest release."
+            latest="d0.1.0"
+          fi
+          echo "Latest release: $latest"
+          echo "latest_tag=$latest" >> $GITHUB_OUTPUT
+
+      # Set job status outputs
+      - name: Set job status output (success)
+        id: set_job_status_success
+        if: success()
+        run: |
+          msg="Latest release found."
+          echo "status=$msg" >> $GITHUB_OUTPUT
+
+      - name: Set job status output (failure)
+        id: set_job_status_failure
+        if: failure()
+        run: |
+          msg=":x: *ERROR: Unable to find the latest release.*"
+          echo "status=$msg" >> $GITHUB_OUTPUT
+    outputs:
+      latest_tag: ${{ steps.latest_release.outputs.latest_tag }}
+      status: ${{ steps.set_job_status_success.outputs.status || steps.set_job_status_failure.outputs.status }}
+
+  validate-provided-tag:
+    name: Validate the New Pre-Release Tag
+    needs: get-latest-release
+    runs-on: ubuntu-22.04
+    env:
+      latest_tag: ${{ needs.get-latest-release.outputs.latest_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # fetch full history + tags
+
+      - name: Validate tag
+        id: validate_tag
+        run: |
+          TAG="${{ github.event.inputs.tag_name }}"
+          LATEST="${{ env.latest_tag }}"
+
+          # Check semantic versioning: dX.Y.Z-alpha
+          if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must follow semantic versioning: x.y.z."
+          fi
+
+          # Check if tag already exists
+          if git tag --list | grep -qx "$TAG"; then
+            echo "Tag $TAG already exists."
+            exit 1
+          fi
+
+          # Extract major, minor, patch
+          if [[ "$TAG" =~ ^d([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            INPUT_MAJOR="${BASH_REMATCH[1]}"
+            INPUT_MINOR="${BASH_REMATCH[2]}"
+            INPUT_PATCH="${BASH_REMATCH[3]}"
+          else
+            echo "Could not parse input tag version."
+            exit 1
+          fi
+
+          if [[ "$LATEST_VERSION" =~ ^d([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            LATEST_MAJOR="${BASH_REMATCH[1]}"
+            LATEST_MINOR="${BASH_REMATCH[2]}"
+            LATEST_PATCH="${BASH_REMATCH[3]}"
+          else
+            echo "Could not parse latest release tag version."
+            exit 1
+          fi
+
+          # Compare versions
+          if (( INPUT_MAJOR < LATEST_MAJOR )) ||
+             (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR < LATEST_MINOR )) ||
+             (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR == LATEST_MINOR && INPUT_PATCH <= LATEST_PATCH )); then
+            echo "Input tag version must be higher than latest release ($LATEST)."
+            exit 1
+          else
+            echo "Tag $TAG is valid and higher than latest release ($LATEST)."
+          fi
+
+      # Set job status outputs
+      - name: Set job status output (success)
+        id: set_job_status_success
+        if: success()
+        run: |
+          msg="The new pre-release tag ${{ env.latest_tag }} is valid."
+          echo "status=$msg" >> $GITHUB_OUTPUT
+
+      - name: Set job status output (failure)
+        id: set_job_status_failure
+        if: failure()
+        run: |
+          msg=":x: *ERROR: the new pre-release tag ${{ env.latest_tag }} is invalid!*"
+          echo "status=$msg" >> $GITHUB_OUTPUT
+    outputs:
+      status: ${{ steps.set_job_status_success.outputs.status || steps.set_job_status_failure.outputs.status }}
+
+  create-and-push-tag:
+    name: Create and Push the Pre-Release Tag
+    needs:
+      - get-latest-release
+      - validate-provided-tag
+    runs-on: ubuntu-22.04
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      latest_tag: ${{ needs.get-latest-release.outputs.latest_tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # fetch all history and tags
+
+      - name: Create and push tag
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.inputs.tag_name }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} "$TAG"
+
+      # Set job status outputs
+      - name: Set job status output (success)
+        id: set_job_status_success
+        if: success()
+        run: |
+          msg="The new pre-release tag was created."
+          echo "status=$msg" >> $GITHUB_OUTPUT
+
+      - name: Set job status output (failure)
+        id: set_job_status_failure
+        if: failure()
+        run: |
+          msg=":x: *ERROR: Unable to create the new pre-release tag!*"
+          echo "status=$msg" >> $GITHUB_OUTPUT
+
+    outputs:
+      status: ${{ steps.set_job_status_success.outputs.status || steps.set_job_status_failure.outputs.status }}
+
+  notify-prerelease-status:
+    name: Notify Pre-Release Tag Creation Status on Slack
+    runs-on: ubuntu-22.04
+    needs:
+      - get-latest-release
+      - validate-provided-tag
+      - create-and-push-tag
+    env:
+      latest_tag: ${{ needs.get-latest-release.outputs.latest_tag }}
+      get_latest_release_status: ${{ needs.get-latest-release.outputs.status }}
+      validate_status: ${{ needs.validate-provided-tag.outputs.status }}
+      create_release_tag_status: ${{ needs.create-and-push-tag.outputs.status }}
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    if: always()
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # fetch full history + tags
+
+      - name: Get all the status outputs
+        env:
+          GET_LATEST_RELEASE_STATUS: ${{ env.get_latest_release_status }}
+          VALIDATE_STATUS: ${{ env.validate_status }}
+          CREATE_RELEASE_TAG_STATUS: ${{ env.create_release_tag_status }}
+        run: |
+          msg="  - *Get Latest Release*: $GET_LATEST_RELEASE_STATUS"
+          msg="$msg\n  - *Validate Pre-Release Tag*: $VALIDATE_STATUS"
+          msg="$msg\n  - *Create Release Tag*: $CREATE_RELEASE_TAG_STATUS"
+          echo "slack_message=$msg" >> $GITHUB_ENV
+
+      - name: Send general notification for pipeline success
+        if: needs.create-and-push-tag.result == 'success'
+        uses: ./.github/workflows/actions/send-slack-notification
+        with:
+          slack_notification: ":white_check_mark: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> completed successfully.\\n_Triggered by: ${{ github.actor }}_."
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Send general notification for pipeline failure
+        if: needs.create-and-push-tag.result == 'failure' || needs.validate-provided-tag.result == 'failure' || needs.get-latest-release.result == 'failure'
+        uses: ./.github/workflows/actions/send-slack-notification
+        with:
+          slack_notification: ":x: *ERROR: The <https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}|Ontario Wallet Create Pre-Release pipeline> failed with one or more errors!*\\n\\nDetails:\\n${{ env.slack_message }}\\n_Triggered by: ${{ github.actor }}_."
+          slack_webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
