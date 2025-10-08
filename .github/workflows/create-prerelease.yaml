@@ -106,7 +106,7 @@ jobs:
           fi
   
           # Extract major, minor, patch from latest tag
-          if [[ "$LATEST" =~ ^d([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          if [[ "$LATEST" =~ ([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
             LATEST_MAJOR="${BASH_REMATCH[1]}"
             LATEST_MINOR="${BASH_REMATCH[2]}"
             LATEST_PATCH="${BASH_REMATCH[3]}"
