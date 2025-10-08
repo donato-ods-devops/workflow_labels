@@ -134,14 +134,14 @@ jobs:
             echo "The provided Pre-Release Tag $TAG is valid and higher than latest release $LATEST."
           fi
 
-          # Export MSG to GITHUB_ENV for use in later steps
+          # Export MSG to GITHUB_ENV for use in later steps this way because of newlines
           echo "MSG<<EOF" >> $GITHUB_ENV
           echo "$MSG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
           if [[ $ERRORS -gt 0 ]]; then
             echo "Tag validation failed with $ERRORS error(s)."
-            echo "Details: $MSG"
+            echo -e "Details: $MSG"
             exit 1
           fi
 
