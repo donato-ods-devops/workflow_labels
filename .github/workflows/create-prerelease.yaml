@@ -6,6 +6,7 @@ on:
       tag_name:
         description: 'Please enter ONLY the version to create (e.g., 1.2.3). The version MUST follow semantic versioning, must be higher than the current version, and not already exist.'
         required: true
+        default: 0.1.0
 
 jobs:
   get-latest-release:
