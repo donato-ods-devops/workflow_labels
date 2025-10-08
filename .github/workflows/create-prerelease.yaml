@@ -25,11 +25,12 @@ jobs:
         run: |
           latest=$(gh release view --json tagName -q .tagName || true)
           if [ -z "$latest" ]; then
-            echo "Unable to find a release matching X.X.X format."
+            echo "Unable to find a release matching the required format."
             echo "Defaulting to 0.0.0 as the latest release."
             latest="0.0.0"
           fi
           echo "Latest release: $latest"
+          echo "latest_tag=$latest" >> $GITHUB_ENV
           echo "latest_tag=$latest" >> $GITHUB_OUTPUT
 
       # Set job status outputs
@@ -37,7 +38,7 @@ jobs:
         id: set_job_status_success
         if: success()
         run: |
-          msg="Latest release found."
+          msg="Latest release $latest_tag found."
           echo "status=$msg" >> $GITHUB_OUTPUT
 
       - name: Set job status output (failure)
@@ -67,10 +68,11 @@ jobs:
         run: |
           TAG="${{ github.event.inputs.tag_name }}"
           LATEST="${{ env.latest_tag }}"
+          MSG=""
   
           # Default to d0.0.0 if no latest tag is provided
           if [ -z "$LATEST" ]; then
-            echo "No latest tag found. Assuming baseline version 0.0.0 for comparison."
+            echo "No latest release found. Using version 0.0.0 for comparison."
             LATEST="0.0.0"
           fi
   
@@ -78,13 +80,15 @@ jobs:
   
           # Check semantic versioning: e.g., 1.2.3
           if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Tag must follow semantic versioning: e.g., 1.2.3."
+            echo "The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3."
+            MSG="${MSG}\\n  * The provided tag $TAG does not follow semantic versioning, e.g. 1.2.3."
             exit 1
           fi
   
           # Check if tag already exists
           if git tag --list | grep -qx "$TAG"; then
             echo "A Release Tag $TAG already exists."
+            MSG="${MSG}\\n  * A Release Tag $TAG already exists."
             exit 1
           fi
 
@@ -92,6 +96,7 @@ jobs:
           # Check if pre-release tag already exists
           if git tag --list | grep -qx "${TAG}-prerelease"; then
             echo "A Pre-Release Tag ${TAG}-prerelease already exists."
+            MSG="${MSG}\\n  * A Pre-Release Tag ${TAG}-prerelease already exists."
             exit 1
           fi
   
@@ -102,6 +107,7 @@ jobs:
             INPUT_PATCH="${BASH_REMATCH[3]}"
           else
             echo "Could not parse the provided version."
+            MSG="${MSG}\\n  * Could not parse the provided version."
             exit 1
           fi
   
@@ -112,6 +118,7 @@ jobs:
             LATEST_PATCH="${BASH_REMATCH[3]}"
           else
             echo "Could not parse the latest release version."
+            MSG="${MSG}\\n  * Could not parse the latest release version."
             exit 1
           fi
   
@@ -119,11 +126,13 @@ jobs:
           if (( INPUT_MAJOR < LATEST_MAJOR )) ||
              (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR < LATEST_MINOR )) ||
              (( INPUT_MAJOR == LATEST_MAJOR && INPUT_MINOR == LATEST_MINOR && INPUT_PATCH <= LATEST_PATCH )); then
-            echo "You must provide a version number that is higher than the latest release ($LATEST)."
+            echo "The provided Pre-Release Tag is not higher than the latest release $LATEST."
+            MSG="${MSG}\\n  * The provided Pre-Release Tag is not higher than the latest release $LATEST."
             exit 1
           else
             echo "The provided Pre-Release Tag $TAG is valid and higher than latest release ($LATEST)."
           fi
+          echo "MSG=${MSG}" >> GITHUB_ENV
   
       - name: Set job status output (success)
         id: set_job_status_success
@@ -136,7 +145,7 @@ jobs:
         id: set_job_status_failure
         if: failure()
         run: |
-          msg=":x: *ERROR: the new pre-release tag ${{ github.event.inputs.tag_name }} is invalid!*"
+          msg=":x: *ERROR: the new pre-release tag ${{ github.event.inputs.tag_name }} is invalid!*\\nDetails:\\n${MSG}"
           echo "status=$msg" >> $GITHUB_OUTPUT
   
     outputs:
